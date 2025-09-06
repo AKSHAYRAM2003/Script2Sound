@@ -10,8 +10,8 @@ st.set_page_config(
     layout="wide"
 )
 
-# API base URL
-API_BASE_URL = "http://127.0.0.1:8000"
+# API base URL - update this with your deployed backend URL
+API_BASE_URL = st.secrets.get("API_BASE_URL", "http://127.0.0.1:8000")
 
 def get_available_voices() -> List[Dict]:
     """Fetch available voices from the API"""
