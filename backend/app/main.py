@@ -43,11 +43,12 @@ app.add_middleware(
 # Pydantic models for request/response validation
 class TextToSpeechRequest(BaseModel):
     """Request model for text-to-speech conversion"""
-    text: str = Field(..., min_length=1, max_length=50000, description="Text to convert to speech")
+    text: str = Field(..., min_length=1, max_length=10000, description="Text to convert to speech")
     voice_name: str = Field(default="en-US-Neural2-D", description="Google TTS voice name")
     language_code: str = Field(default="en-US", description="Language code")
     speaking_rate: float = Field(default=1.0, ge=0.25, le=4.0, description="Speaking rate")
     pitch: float = Field(default=0.0, ge=-20.0, le=20.0, description="Voice pitch")
+    is_ssml: bool = Field(default=False, description="Whether the text is SSML formatted")
 
 class VoiceInfo(BaseModel):
     """Model for voice information"""
@@ -121,7 +122,8 @@ async def generate_audio(
             voice_name=request.voice_name,
             language_code=request.language_code,
             speaking_rate=request.speaking_rate,
-            pitch=request.pitch
+            pitch=request.pitch,
+            is_ssml=request.is_ssml
         )
         
         logger.info("Audio generation completed successfully")

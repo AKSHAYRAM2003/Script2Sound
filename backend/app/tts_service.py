@@ -27,7 +27,7 @@ class TTSService:
         """Initialize the TTS client and configuration"""
         try:
             self.client = texttospeech.TextToSpeechClient()
-            self.max_chars = 5000  # Google TTS character limit per request
+            self.max_chars = 10000  # Increased from 5000 to 10000
             logger.info("TTS Service initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize TTS Service: {e}")
@@ -79,17 +79,19 @@ class TTSService:
         voice_name: str = "en-US-Neural2-D",
         language_code: str = "en-US",
         speaking_rate: float = 1.0,
-        pitch: float = 0.0
+        pitch: float = 0.0,
+        is_ssml: bool = False
     ) -> bytes:
         """
         Convert text to speech using Google Cloud TTS
         
         Args:
-            text: Text to convert to speech
+            text: Text to convert to speech (plain text or SSML)
             voice_name: Google TTS voice name
             language_code: Language code (e.g., 'en-US')
             speaking_rate: Speech speed (0.25 to 4.0)
             pitch: Voice pitch (-20.0 to 20.0)
+            is_ssml: Whether the input text is SSML formatted
             
         Returns:
             Audio data as bytes
@@ -98,7 +100,10 @@ class TTSService:
             if not text.strip():
                 raise ValueError("Text cannot be empty")
             
-            logger.info(f"Converting text to speech: {len(text)} characters")
+            # Clean the text
+            text = self._clean_text(text)
+            
+            logger.info(f"Converting text to speech: {len(text)} characters, SSML: {is_ssml}")
             
             # Split text into chunks if needed
             chunks = self._chunk_text(text)
@@ -108,8 +113,11 @@ class TTSService:
             for i, chunk in enumerate(chunks):
                 logger.info(f"Processing chunk {i+1}/{len(chunks)}")
                 
-                # Configure synthesis input
-                synthesis_input = texttospeech.SynthesisInput(text=chunk)
+                # Configure synthesis input - use SSML if specified
+                if is_ssml and chunk.strip().startswith('<?xml'):
+                    synthesis_input = texttospeech.SynthesisInput(ssml=chunk)
+                else:
+                    synthesis_input = texttospeech.SynthesisInput(text=chunk)
                 
                 # Configure voice parameters
                 voice = texttospeech.VoiceSelectionParams(
@@ -117,12 +125,13 @@ class TTSService:
                     name=voice_name
                 )
                 
-                # Configure audio output
+                # Configure audio output with enhanced settings
                 audio_config = texttospeech.AudioConfig(
                     audio_encoding=texttospeech.AudioEncoding.MP3,
                     speaking_rate=speaking_rate,
                     pitch=pitch,
-                    effects_profile_id=["headphone-class-device"]  # Optimize for headphones
+                    effects_profile_id=["headphone-class-device"],  # Optimize for headphones
+                    sample_rate_hertz=24000  # Higher quality sample rate
                 )
                 
                 # Make async call to Google TTS API
@@ -147,6 +156,30 @@ class TTSService:
         except Exception as e:
             logger.error(f"TTS conversion failed: {str(e)}")
             raise
+
+    def _clean_text(self, text: str) -> str:
+        """
+        Clean and normalize text for better TTS processing
+        
+        Args:
+            text: Input text to clean
+            
+        Returns:
+            Cleaned text
+        """
+        # Remove extra whitespace and normalize line breaks
+        text = ' '.join(text.split())  # Replace multiple spaces/newlines with single space
+        
+        # Handle common text formatting issues
+        text = text.replace('\n', ' ')  # Replace newlines with spaces
+        text = text.replace('\r', ' ')  # Replace carriage returns
+        text = text.replace('\t', ' ')  # Replace tabs with spaces
+        
+        # Remove any XML/HTML tags that might be accidentally included
+        import re
+        text = re.sub(r'<[^>]+>', '', text)  # Remove HTML/XML tags
+        
+        return text.strip()
 
     async def get_available_voices(self, language_code: str = "en-US") -> List[Dict]:
         """
